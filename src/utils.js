@@ -103,12 +103,15 @@ const utils = {
                 data.labels.hasOwnProperty("namespace") &&
                 data.labels.hasOwnProperty("pod")) {
 
+                // Chop off the "bc-" prefix
+                const username = namespace.substring(3);
+
                 left = {
                     "datasource": process.env.GRAFANA_LOKI_DATASOURCE,
                     "queries": [
                         {
                             "refId": "A",
-                            "expr": `{env="${data.labels.env}",cluster_id="${data.labels.cluster_id}",namespace="${data.labels.namespace}",pod="${data.labels.pod}"}`,
+                            "expr": `{env="${data.labels.env}",cluster_id="${data.labels.cluster_id}",username="${username}"} | unpack | pod="${data.labels.pod}"`,
                         }
                     ],
                     "range": { "from": "now-15m", "to": "now" }
