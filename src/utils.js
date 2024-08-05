@@ -109,6 +109,7 @@ const utils = {
                         {
                             "refId": "A",
                             "expr": `{env="${data.labels.env}",cluster_id="${data.labels.cluster_id}",namespace="${data.labels.namespace}",pod="${data.labels.pod}"}`,
+                            "queryType": "range",
                         }
                     ],
                     "range": { "from": "now-15m", "to": "now" }
@@ -125,6 +126,7 @@ const utils = {
                         {
                             "refId": "A",
                             "expr": `{env="${data.labels.env}",cluster_id="${data.labels.cluster_id}",nodename="${data.labels.nodename}",job="${data.labels.exported_job}",level="${data.labels.level}"}`,
+                            "queryType": "range",
                         }
                     ],
                     "range": { "from": "now-15m", "to": "now" }
