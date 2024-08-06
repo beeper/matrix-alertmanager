@@ -125,8 +125,8 @@ const utils = {
                     "queries": [
                         {
                             "refId": "A",
-                            "expr": `{env="${data.labels.env}",cluster_id="${data.labels.cluster_id}",nodename="${data.labels.nodename}",job="${data.labels.exported_job}",level="${data.labels.level}"}`,
                             "queryType": "range",
+                            "expr": `{env="${data.labels.env}",cluster_id="${data.labels.cluster_id}",nodename="${data.labels.nodename}",job="${data.labels.exported_job}",level="${data.labels.level}"}`,
                         }
                     ],
                     "range": { "from": "now-15m", "to": "now" }
@@ -148,6 +148,7 @@ const utils = {
                 "datasource": data.annotations.logs_datasource || "Loki Core",
                 "queries": [{
                     "refId": "A",
+                    "queryType": "range",
                     "expr": data.annotations.logs_template.replace(/\$([a-z0-9_]+)/g, function(_, label) {
                         return data.labels[label] || "";
                     }),
