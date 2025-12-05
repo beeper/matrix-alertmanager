@@ -1,20 +1,32 @@
 const client = require('./client')
 const utils = require('./utils')
 
+const crypto = require('crypto')
+
+const passwordsEqual = (a, b) => {
+    return a && b && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
+}
+
 const routes = {
     getRoot: (req, res) => {
         res.send('Hey 👋')
     },
     postAlerts: async (req, res) => {
-        let authorized = false;
-        let expectedSecret = process.env.APP_ALERTMANAGER_SECRET;
+        let authorized = false
+        let expectedSecret = process.env.APP_ALERTMANAGER_SECRET
 
-        if (req.query.secret === expectedSecret) {
-            authorized = true;
+        if (!expectedSecret) {
+            console.error("APP_ALERTMANAGER_SECRET is not configured, unable to authenticate requests")
+            res.status(500).end()
+            return
         }
 
-        if (req.get('authorization') === `Bearer ${expectedSecret}`) {
-            authorized = true;
+        if (passwordsEqual(req.query.secret, expectedSecret)) {
+            authorized = true
+        }
+
+        if (passwordsEqual(req.get('authorization'), `Bearer ${expectedSecret}`)) {
+            authorized = true
         }
 
         if (!authorized) {

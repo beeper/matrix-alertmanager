@@ -40,6 +40,7 @@ receivers:
   - url: 'https://my-matrix-alertmanager.tld/alerts'
     http_config:
       authorization:
+        type: Bearer
         credentials: 'veryverysecretkeyhere'
 ```
 
