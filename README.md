@@ -19,10 +19,10 @@ Main features:
 
 ### Configuration
 
-Whether running manually or via the Docker image, the configuration is set 
+Whether running manually or via the Docker image, the configuration is set
 via environment variables. When running manually, copy `.env.default`
-into `.env`, set the values and they will be loaded automatically. 
-When using the Docker image, set the environment variables when running 
+into `.env`, set the values and they will be loaded automatically.
+When using the Docker image, set the environment variables when running
 the container.
 
 ### Docker
@@ -37,10 +37,18 @@ You will need to configure a webhook receiver in Alertmanager. It should looks s
 receivers:
 - name: 'myreceiver'
   webhook_configs:
-  - url: 'https://my-matrix-alertmanager.tld/alerts?secret=veryverysecretkeyhere'
+  - url: 'https://my-matrix-alertmanager.tld/alerts'
+    http_config:
+      authorization:
+        credentials: 'veryverysecretkeyhere'
 ```
 
 The secret key obviously should match the one in the alertmanager configuration.
+
+The configuration above will pass the secret as an Authorization
+header bearer token, alternatively you can pass it as a query
+parameter `secret`, but if you do it that way then it is not redacted
+from the Alertmanager web UI so this is not really recommended.
 
 ### Prometheus rules
 

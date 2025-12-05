@@ -6,11 +6,22 @@ const routes = {
         res.send('Hey 👋')
     },
     postAlerts: async (req, res) => {
-        const secret = req.query.secret
-        if (secret !== process.env.APP_ALERTMANAGER_SECRET) {
+        let authorized = false;
+        let expectedSecret = process.env.APP_ALERTMANAGER_SECRET;
+
+        if (req.query.secret === expectedSecret) {
+            authorized = true;
+        }
+
+        if (req.get('authorization') === `Bearer ${expectedSecret}`) {
+            authorized = true;
+        }
+
+        if (!authorized) {
             res.status(403).end()
             return
         }
+
         const alerts = utils.parseAlerts(req.body)
 
         if (!alerts) {
