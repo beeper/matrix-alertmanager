@@ -1,3 +1,250 @@
+const jsdiff = require('diff');
+
+const segmentString = (string) => {
+    return Array.from(string.matchAll(/[a-z0-9-]+|[^a-z0-9-]+/gi).map(match => match[0]));
+}
+
+const diffSegmented = (left, right) => {
+    return jsdiff.diffArrays(segmentString(left), segmentString(right)).map(match => {
+        match.value = match.value.join("");
+        match.count = match.value.length;
+        return match;
+    });
+}
+
+const mergeStrings = (strings) => {
+    if (!strings || strings.length === 0) {
+        throw new Error(`No strings to merge!`);
+    }
+
+    if (strings.length === 1) {
+        return strings[0];
+    }
+
+    // Take one string and diff it against all the other strings. This
+    // will show us all the places where the strings differ from each
+    // other.
+    //
+    // We'll actually diff the string against every string including
+    // itself, the latter of which will give us an empty diff. This
+    // will be helpful later as we won't have to treat the first
+    // string as a special case.
+    const diffs = [];
+    for (const str of strings) {
+        diffs.push(diffSegmented(strings[0], str));
+    }
+
+    // Go through each of the diffs sequentially. For each diff,
+    // iterate through each character of the first string, and see
+    // what happened to that character when the diff was applied. If
+    // it remained unchanged, rather than being deleted or
+    // substituted, we'll note that down. This will give us, for each
+    // diff, a list of which characters from the first string were
+    // left unchanged.
+    const unchangedSets = [];
+    for (const diff of diffs) {
+        const unchanged = new Set();
+        let ptr = 0;
+        for (const edit of diff) {
+            // We should advance ptr for either deletions or unchanged
+            // sections. However, only the latter should be noted down
+            // in our set for later.
+            if (!edit.added) {
+                for (let i = 0; i < edit.value.length; i++) {
+                    if (!edit.removed) {
+                        unchanged.add(ptr);
+                    }
+                    ptr += 1;
+                }
+            }
+        }
+        if (ptr !== strings[0].length) {
+            throw new Error(`Diff didn't cover length of original string!`);
+        }
+        unchangedSets.push(unchanged);
+    }
+
+    // Now we have a set of unchanged characters from the original
+    // string, one set for each diff. We compute a set intersection to
+    // find which characters from the original string are unchanged in
+    // every diff no matter what. We can use these as anchors so that
+    // the only changes between the strings occur in between these
+    // anchors.
+    let unchangedCommon = unchangedSets[0];
+    for (const unchanged of unchangedSets) {
+        unchangedCommon = unchangedCommon.intersection(unchanged);
+    }
+
+    // This gives us a bag of integers, but what we really want is
+    // ranges, to be easier to process. The computed ranges are
+    // inclusive-exclusive, and we add one onto the iteration length
+    // to neatly take care of ranges that end on the last character.
+    let unchangedRanges = [];
+    let rangeActive = false, rangeStart = -1;
+    for (let ptr = 0; ptr < strings[0].length + 1; ptr++) {
+        if (unchangedCommon.has(ptr) && !rangeActive) {
+            rangeActive = true, rangeStart = ptr;
+        } else if (!unchangedCommon.has(ptr) && rangeActive) {
+            rangeActive = false, unchangedRanges.push({
+                start: rangeStart,
+                end: ptr,
+            });
+        }
+    }
+
+    // We'll also invert those ranges, to obtain the ranges that
+    // represent the remaining characters that are different between
+    // some of the strings, as opposed to the characters that are the
+    // same between all of them. We add some fake ranges on to the
+    // front and back to make the computation simpler in case there
+    // are varying ranges at the front or back.
+    let unchangedRangesAugmented = [
+        {
+            start: -1,
+            end: 0,
+        },
+        ...unchangedRanges,
+        {
+            start: strings[0].length,
+            end: strings[0].length + 1,
+        },
+    ];
+    let varyingRanges = [];
+    for (let i = 0; i < unchangedRangesAugmented.length - 1; i++) {
+        let start = unchangedRangesAugmented[i].end;
+        let end = unchangedRangesAugmented[i + 1].start;
+        if (start !== end) {
+            varyingRanges.push({ start, end });
+        }
+    }
+
+    // Now that we have a list of character ranges that may vary in
+    // each string, we can perform the same iteration through each
+    // diff as before, except now collecting the actual character data
+    // for those ranges.
+    const varyingLists = [];
+    for (const diff of diffs) {
+        const chars = [];
+        let ptr = 0;
+        for (const edit of diff) {
+            // Again we should only advance ptr for deletions or
+            // unchanged sections. But now instead of just noting down
+            // unchanged sections, we are also noting down additions.
+            // We tag each section or character with the relevant
+            // value of ptr, so that we can later filter to find out
+            // whether it falls within one of the ranges we are
+            // interested in.
+            if (edit.added) {
+                for (let i = 0; i < edit.value.length; i++) {
+                    chars.push({
+                        ptr: ptr,
+                        value: edit.value[i],
+                        countAdjacent: true,
+                    });
+                }
+            } else {
+                for (let i = 0; i < edit.value.length; i++) {
+                    if (!edit.removed) {
+                        chars.push({
+                            ptr: ptr,
+                            value: edit.value[i],
+                            countAdjacent: false,
+                        });
+                    }
+                    ptr += 1;
+                }
+            }
+        }
+        // Note that even though the ranges are inclusive-exclusive,
+        // we are treating them as inclusive-inclusive here because we
+        // want adjacent substrings to be picked up, as well.
+        const varyingParts = [];
+        let idx = 0, done = false;
+        for (const range of varyingRanges) {
+            if (chars[idx].ptr > range.end) {
+                continue;
+            }
+            while (chars[idx].ptr < range.start) {
+                idx += 1;
+                if (idx >= chars.length) {
+                    done = true;
+                    break;
+                }
+            }
+            if (done) {
+                break;
+            }
+            let varyingPart = [];
+            while (chars[idx].ptr <= range.end) {
+                if (chars[idx].ptr < range.end || chars[idx].countAdjacent) {
+                    varyingPart.push(chars[idx].value);
+                }
+                idx += 1;
+                if (idx >= chars.length) {
+                    done = true;
+                    break;
+                }
+            }
+            varyingParts.push(varyingPart.join(""));
+            if (done) {
+                break;
+            }
+        }
+        varyingLists.push(varyingParts);
+    }
+
+    let varyingIdx = 0, unchangedIdx = 0;
+    let onVarying = varyingRanges[0].start === 0;
+
+    let combined = [];
+    while (
+        onVarying
+        ? (varyingIdx < varyingRanges.length)
+        : (unchangedIdx < unchangedRanges.length)
+    ) {
+        if (onVarying) {
+            let variants = new Set();
+            for (const list of varyingLists) {
+                variants.add(list[varyingIdx]);
+            }
+            combined.push("{" + [...variants].sort().join(", ") + "}");
+
+            varyingIdx += 1;
+            onVarying = false;
+        } else {
+            const range = unchangedRanges[unchangedIdx];
+            combined.push(strings[0].slice(range.start, range.end));
+
+            unchangedIdx += 1;
+            onVarying = true;
+        }
+    }
+
+    return combined.join("");
+}
+
+// console.log(mergeStrings([
+//     "ArgoCD app stage1 sync status is Unknown in cluster prod/edge-eu-cuddly-pants",
+//     "ArgoCD app stage2 sync status is Unknown in cluster prod/edge-eu-cuddly-pants",
+//     "ArgoCD app stage1 sync status is OutOfSync in cluster prod/edge-eu-cuddly-pants",
+//     "ArgoCD app stage1 sync status is Unknown in cluster staging/edge-na-rosy-gift",
+// ]))
+
+console.log(mergeStrings([
+    "ArgoCD app stage1 sync status is Unknown in cluster prod/edge-eu-cuddly-pants",
+    "ArgoCD app stage2 sync status is Unknown in cluster prod/edge-eu-cuddly-pants",
+    "ArgoCD app stage3 sync status is Unknown in cluster prod/edge-eu-cuddly-pants",
+    "ArgoCD app stage1 sync status is Unknown in cluster staging/edge-na-rosy-gift",
+    "ArgoCD app stage2 sync status is Unknown in cluster staging/edge-na-rosy-gift",
+    "ArgoCD app stage3 sync status is Unknown in cluster staging/edge-na-rosy-gift",
+    "ArgoCD app stage1 sync status is OutOfSync in cluster prod/edge-eu-cuddly-pants",
+    "ArgoCD app stage2 sync status is OutOfSync in cluster prod/edge-eu-cuddly-pants",
+    "ArgoCD app stage3 sync status is OutOfSync in cluster prod/edge-eu-cuddly-pants",
+    "ArgoCD app stage1 sync status is OutOfSync in cluster staging/edge-na-rosy-gift",
+    "ArgoCD app stage2 sync status is OutOfSync in cluster staging/edge-na-rosy-gift",
+    "ArgoCD app stage3 sync status is OutOfSync in cluster staging/edge-na-rosy-gift",
+]))
+
 const utils = {
 
     getRoomForReceiver: receiver => {
