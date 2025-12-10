@@ -223,28 +223,6 @@ const mergeStrings = (strings) => {
     return combined.join("");
 }
 
-// console.log(mergeStrings([
-//     "ArgoCD app stage1 sync status is Unknown in cluster prod/edge-eu-cuddly-pants",
-//     "ArgoCD app stage2 sync status is Unknown in cluster prod/edge-eu-cuddly-pants",
-//     "ArgoCD app stage1 sync status is OutOfSync in cluster prod/edge-eu-cuddly-pants",
-//     "ArgoCD app stage1 sync status is Unknown in cluster staging/edge-na-rosy-gift",
-// ]))
-
-console.log(mergeStrings([
-    "ArgoCD app stage1 sync status is Unknown in cluster prod/edge-eu-cuddly-pants",
-    "ArgoCD app stage2 sync status is Unknown in cluster prod/edge-eu-cuddly-pants",
-    "ArgoCD app stage3 sync status is Unknown in cluster prod/edge-eu-cuddly-pants",
-    "ArgoCD app stage1 sync status is Unknown in cluster staging/edge-na-rosy-gift",
-    "ArgoCD app stage2 sync status is Unknown in cluster staging/edge-na-rosy-gift",
-    "ArgoCD app stage3 sync status is Unknown in cluster staging/edge-na-rosy-gift",
-    "ArgoCD app stage1 sync status is OutOfSync in cluster prod/edge-eu-cuddly-pants",
-    "ArgoCD app stage2 sync status is OutOfSync in cluster prod/edge-eu-cuddly-pants",
-    "ArgoCD app stage3 sync status is OutOfSync in cluster prod/edge-eu-cuddly-pants",
-    "ArgoCD app stage1 sync status is OutOfSync in cluster staging/edge-na-rosy-gift",
-    "ArgoCD app stage2 sync status is OutOfSync in cluster staging/edge-na-rosy-gift",
-    "ArgoCD app stage3 sync status is OutOfSync in cluster staging/edge-na-rosy-gift",
-]))
-
 const utils = {
 
     getRoomForReceiver: receiver => {
@@ -437,6 +415,14 @@ const utils = {
         return parts.join(' ')
     },
 
+    formatAlerts: data => {
+        let summaries = data.alerts.map(
+            alert => alert.annotations.summary || alert.labels.alertname,
+        );
+        let summary = mergeStrings(summaries);
+        return summary;
+    },
+
     parseAlerts: data => {
         /*
         Parse AlertManager data object into an Array of message strings.
@@ -446,6 +432,10 @@ const utils = {
         }
 
         console.log(JSON.stringify(data))
+
+        if (process.env.RESPECT_GROUPBY === "1") {
+            return [utils.formatAlerts(data)]
+        }
 
         let alerts = []
 
