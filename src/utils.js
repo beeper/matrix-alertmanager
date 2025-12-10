@@ -429,9 +429,24 @@ const utils = {
             const alerts = (
                 data.alerts
                     .filter(alert => alert.status === status)
-                    .map(alert => ({
-                        ...alert, summary: alert.annotations.summary || alert.labels.alertname,
-                    }))
+                    .map(alert => {
+                        alert = {...alert};
+                        alert.summary = alert.annotations.summary || alert.labels.alertname;
+                        if (!alert.labels.logs_url && !alert.labels.logs_template) {
+                            for (const labelSet of [
+                                ["env", "cluster_id", "namespace", "pod"],
+                                ["env", "cluster_id", "nodename", "exported_job", "level"],
+                            ]) {
+                                if (labelSet.every(l => alert.labels[l])) {
+                                    alert.logs_template = (
+                                        "{" + labelSet.map(l => l + `=$` + l).join(",") + "}"
+                                    );
+                                    break;
+                                }
+                            }
+                        }
+                        return alert;
+                    })
             );
 
             let summary = mergeStrings(alerts.map(alert => alert.summary));
@@ -472,8 +487,23 @@ const utils = {
                 parts.push(` <br><b>${label}</b>: ${value}`);
             }
 
+            const omitAnnotation = (ann) => {
+                switch (ann) {
+                    case "summary":
+                    case "dashboard_url":
+                    case "runbook_url":
+                    case "logs_url":
+                    case "logs_template":
+                    case "logs_datasource":
+                        return true;
+                    default:
+                        return false;
+                }
+            }
+
             let hasCommonAnnotation = false;
             for (const [annotation, value] of Object.entries(data.commonAnnotations)) {
+                if (omitAnnotation(annotation)) continue;
                 if (!hasCommonAnnotation) {
                     parts.push(`<br>`);
                     hasCommonAnnotation;
@@ -500,13 +530,8 @@ const utils = {
                     }
                     let hasAnnotation = false;
                     for (const [annotation, value] of Object.entries(alert.annotations)) {
+                        if (omitAnnotation(annotation)) continue;
                         if (data.commonAnnotations[annotation]) continue;
-                        if (
-                            annotation === "summary" ||
-                            annotation.startsWith("logs_")
-                        ) {
-                            continue;
-                        }
                         if (!hasAnnotation) {
                             parts.push(`<br>`);
                             hasAnnotation = true;
@@ -523,34 +548,40 @@ const utils = {
 
         const urls = [];
 
+        const makeGrafanaURL = (alerts, expr, datasource) => {
+            const relevantTimes = alerts.map(alert => new Date(alert.startsAt));
+            relevantTimes.push(new Date());
+            const minRelevant = Math.min.apply(null, relevantTimes),
+                  maxRelevant = Math.max.apply(null, relevantTimes);
+            const thirtyMinutesMs = 30 * 60 * 1000;
+            const windowStarts = new Date(minRelevant - thirtyMinutesMs);
+            const windowEnds = new Date(maxRelevant + thirtyMinutesMs);
+            const left = {
+                datasource: datasource,
+                queries: [{
+                    refId: "A",
+                    queryType: "range",
+                    expr: expr,
+                }],
+                range: {
+                    "from": windowStarts.toISOString(),
+                    "to": windowEnds.toISOString(),
+                },
+            };
+            return (
+                process.env.GRAFANA_URL +
+                "/explore?orgId=1&left=" +
+                encodeURIComponent(JSON.stringify(left))
+            );
+        }
+
         if (process.env.GRAFANA_URL && process.env.GRAFANA_DATASOURCE) {
             const generatorURLs = new Set(data.alerts.map(alert => alert.generatorURL));
             let grafanaNum = 1;
             for (const generatorURL of generatorURLs) {
                 const alerts = data.alerts.filter(alert => alert.generatorURL == generatorURL);
-                const relevantTimes = alerts.map(alert => new Date(alert.startsAt));
-                relevantTimes.push(new Date());
-                const minRelevant = Math.min.apply(null, relevantTimes),
-                      maxRelevant = Math.max.apply(null, relevantTimes);
-                const thirtyMinutesMs = 30 * 60 * 1000;
-                const windowStarts = new Date(minRelevant - thirtyMinutesMs);
-                const windowEnds = new Date(maxRelevant + thirtyMinutesMs);
-                const left = {
-                    datasource: process.env.GRAFANA_DATASOURCE,
-                    queries: [{
-                        refId: "A",
-                        expr: new URL(`fake:${generatorURL}`).searchParams.get("g0.expr"),
-                    }],
-                    range: {
-                        "from": windowStarts.toISOString(),
-                        "to": windowEnds.toISOString(),
-                    },
-                };
-                const url = (
-                    process.env.GRAFANA_URL +
-                    "/explore?orgId=1&left=" +
-                    encodeURIComponent(JSON.stringify(left))
-                );
+                const expr = new URL(`fake:${generatorURL}`).searchParams.get("g0.expr");
+                const url = makeGrafanaURL(alerts, expr, process.env.GRAFANA_DATASOURCE);
                 const name = generatorURLs.size > 1 ? `Alert query ${grafanaNum}` : "Alert query";
                 urls.push(`<a href="${url}">📈 ${name}</a>`);
                 grafanaNum += 1;
@@ -568,6 +599,61 @@ const utils = {
                 "}"
             );
             urls.push(`<a href="${url}">🔇 Silence</a>`);
+        }
+
+        const dashboardURLs = new Set(data.alerts
+                                          .map(alert => alert.annotations.dashboard_url)
+                                          .filter(Boolean));
+        let dashboardNum = 1;
+        for (const dashboardURL of dashboardURLs) {
+            const name = dashboardURLs.size > 1 ? `Dashboard ${dashboardNum}` : "Dashboard";
+            urls.push(`<a href="${dashboardURL}>🚦 ${name}</a>`);
+            dashboardNum += 1;
+        }
+
+        const runbookURLs = new Set(data.alerts
+                                        .map(alert => alert.annotations.runbook_url)
+                                        .filter(Boolean));
+        let runbookNum = 1;
+        for (const runbookURL of runbookURLs) {
+            const name = runbookURLs.size > 1 ? `Runbook ${runbookNum}` : "Runbook";
+            urls.push(`<a href="${runbookURL}>🗒️ ${name}</a>`);
+        }
+
+        let logsURLs = new Set(data.alerts
+                                   .map(alert => alert.annotations.logs_url)
+                                   .filter(Boolean));
+
+        if (process.env.GRAFANA_URL && process.env.GRAFANA_LOKI_DATASOURCE) {
+            const defaultDatasource = process.env.GRAFANA_LOKI_DATASOURCE;
+            const logsTemplates = new Set(data.alerts
+                                              .map(alert => alert.annotations.logs_template)
+                                              .filter(Boolean));
+            for (const logsTemplate of logsTemplates) {
+                const logsDatasources = new Set(
+                    data.alerts
+                        .map(alert => alert.annotations.logs_datasource || defaultDatasource)
+                        .filter(Boolean)
+                );
+                for (const logsDatasource of logsDatasources) {
+                    const alerts = data.alerts.filter(
+                        alert.annotations.logs_template === logsTemplate &&
+                        alert.annotations.logs_datasource || defaultDatasource === logsDatasource
+                    );
+                    const expr = logsTemplate.replace(/=~?"\$([a-z0-9_]+)"/g, function(_, label) {
+                        const values = new Set(alerts.map(alert => alert.labels[label]).filter(Boolean));
+                        const regex = values.size > 0 ? [...values].join("|") : ".+";
+                        return `=~"${regex}"`;
+                    });
+                    logsURLs.add(makeGrafanaURL(alerts, expr, logsDatasource));
+                }
+            }
+        }
+
+        let logsNum = 1;
+        for (const logsURL of logsURLs) {
+            const name = logsURLs.size > 1 ? `Logs ${logsNum}` : "Logs";
+            urls.push(`<a href="${logsURL}>🪵 ${name}</a>`);
         }
 
         if (urls.length > 0) {
