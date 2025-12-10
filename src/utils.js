@@ -472,6 +472,15 @@ const utils = {
                 parts.push(` <br><b>${label}</b>: ${value}`);
             }
 
+            let hasCommonAnnotation = false;
+            for (const [annotation, value] of Object.entries(data.commonAnnotations)) {
+                if (!hasCommonAnnotation) {
+                    parts.push(`<br>`);
+                    hasCommonAnnotation;
+                }
+                parts.push(` <br><b>${annotation}</b>: ${value}`);
+            }
+
             if (alerts.length > 1) {
                 parts.push(` <br>${nbsp}`);
                 let alertNum = 1;
@@ -489,6 +498,21 @@ const utils = {
                         if (data.commonLabels[label]) continue;
                         parts.push(` <br><b>${label}</b>: ${value}`);
                     }
+                    let hasAnnotation = false;
+                    for (const [annotation, value] of Object.entries(alert.annotations)) {
+                        if (data.commonAnnotations[annotation]) continue;
+                        if (
+                            annotation === "summary" ||
+                            annotation.startsWith("logs_")
+                        ) {
+                            continue;
+                        }
+                        if (!hasAnnotation) {
+                            parts.push(`<br>`);
+                            hasAnnotation = true;
+                        }
+                        parts.push(` <br><b>${annotation}</b>: ${value}`);
+                    }
                     parts.push(` <br>${nbsp}</details>`);
                     alertNum += 1;
                 }
@@ -499,7 +523,7 @@ const utils = {
 
         const urls = [];
 
-        if (process.env.GRAFANA_URL) {
+        if (process.env.GRAFANA_URL && process.env.GRAFANA_DATASOURCE) {
             const generatorURLs = new Set(data.alerts.map(alert => alert.generatorURL));
             let grafanaNum = 1;
             for (const generatorURL of generatorURLs) {
@@ -527,7 +551,7 @@ const utils = {
                     "/explore?orgId=1&left=" +
                     encodeURIComponent(JSON.stringify(left))
                 );
-                const name = generatorURLs.size > 1 ? `Grafana ${grafanaNum}` : "Grafana";
+                const name = generatorURLs.size > 1 ? `Alert query ${grafanaNum}` : "Alert query";
                 urls.push(`<a href="${url}">📈 ${name}</a>`);
                 grafanaNum += 1;
             }
@@ -543,7 +567,7 @@ const utils = {
                 encodeURIComponent(filter) +
                 "}"
             );
-            urls.push(`<a href="${url}">🔇 Alertmanager</a>`);
+            urls.push(`<a href="${url}">🔇 Silence</a>`);
         }
 
         if (urls.length > 0) {
