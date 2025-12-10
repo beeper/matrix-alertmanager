@@ -223,6 +223,12 @@ const mergeStrings = (strings) => {
     return combined.join("");
 }
 
+const colorize = (color, msg) => {
+    // Wrap it with two different ways of doing color, one of which
+    // works on Desktop and one of which works on Android. Yes I know.
+    return `<span data-mx-color="${color}"><font color="${color}">${msg}</font></span>`
+}
+
 const utils = {
 
     getRoomForReceiver: receiver => {
@@ -416,11 +422,135 @@ const utils = {
     },
 
     formatAlerts: data => {
-        let summaries = data.alerts.map(
-            alert => alert.annotations.summary || alert.labels.alertname,
-        );
-        let summary = mergeStrings(summaries);
-        return summary;
+        let parts = [];
+
+        let statuses = new Set(data.alerts.map(alert => alert.status));
+        for (const status of [...statuses].sort()) {
+            const alerts = (
+                data.alerts
+                    .filter(alert => alert.status === status)
+                    .map(alert => ({
+                        ...alert, summary: alert.annotations.summary || alert.labels.alertname,
+                    }))
+            );
+
+            let summary = mergeStrings(alerts.map(alert => alert.summary));
+
+            let severities = new Set(alerts.map(alert => alert.labels.severity));
+
+            let unknownEmoji = "🤨";
+            let severityEmojis = {
+                "critical": "💥",
+                "error":    "🚨",
+                "warning":  "⚠️",
+                "info":     "ℹ️",
+            };
+            let statusEmojis = {
+                "resolved": "✅",
+            };
+            let nbsp = " ";
+
+            let summaryEmoji = "";
+            for (const [severity, emoji] of Object.entries(severityEmojis)) {
+                if (severities.has(severity)) {
+                    summaryEmoji += emoji;
+                }
+            }
+            if (statusEmojis[status]) {
+                summaryEmoji = statusEmojis[status];
+            }
+            if (!summaryEmoji) {
+                summaryEmoji = unknownEmoji;
+            }
+
+            parts.push(`<details>`);
+            parts.push(`<summary><strong>`);
+            parts.push(`${summaryEmoji} ${status.toUpperCase()}: ${summary}`);
+            parts.push(`</strong></summary>`);
+
+            for (const [label, value] of Object.entries(data.commonLabels)) {
+                parts.push(` <br><b>${label}</b>: ${value}`);
+            }
+
+            if (alerts.length > 1) {
+                parts.push(` <br>${nbsp}`);
+                let alertNum = 1;
+                for (const alert of alerts) {
+                    const emoji = (
+                        statusEmojis[alert.status] ||
+                        severityEmojis[alert.labels.severity] ||
+                        unknownEmoji
+                    );
+                    parts.push(`<details>`);
+                    parts.push(`<summary><strong>`);
+                    parts.push(`${emoji} ${alert.status.toUpperCase()}: ${alert.summary}`);
+                    parts.push(`</strong></summary>`);
+                    for (const [label, value] of Object.entries(alert.labels)) {
+                        if (data.commonLabels[label]) continue;
+                        parts.push(` <br><b>${label}</b>: ${value}`);
+                    }
+                    parts.push(` <br>${nbsp}</details>`);
+                    alertNum += 1;
+                }
+            }
+
+            parts.push(`<br></details>`);
+        }
+
+        const urls = [];
+
+        if (process.env.GRAFANA_URL) {
+            const generatorURLs = new Set(data.alerts.map(alert => alert.generatorURL));
+            let grafanaNum = 1;
+            for (const generatorURL of generatorURLs) {
+                const alerts = data.alerts.filter(alert => alert.generatorURL == generatorURL);
+                const relevantTimes = alerts.map(alert => new Date(alert.startsAt));
+                relevantTimes.push(new Date());
+                const minRelevant = Math.min.apply(null, relevantTimes),
+                      maxRelevant = Math.max.apply(null, relevantTimes);
+                const thirtyMinutesMs = 30 * 60 * 1000;
+                const windowStarts = new Date(minRelevant - thirtyMinutesMs);
+                const windowEnds = new Date(maxRelevant + thirtyMinutesMs);
+                const left = {
+                    datasource: process.env.GRAFANA_DATASOURCE,
+                    queries: [{
+                        refId: "A",
+                        expr: new URL(`fake:${generatorURL}`).searchParams.get("g0.expr"),
+                    }],
+                    range: {
+                        "from": windowStarts.toISOString(),
+                        "to": windowEnds.toISOString(),
+                    },
+                };
+                const url = (
+                    process.env.GRAFANA_URL +
+                    "/explore?orgId=1&left=" +
+                    encodeURIComponent(JSON.stringify(left))
+                );
+                const name = generatorURLs.size > 1 ? `Grafana ${grafanaNum}` : "Grafana";
+                urls.push(`<a href="${url}">📈 ${name}</a>`);
+                grafanaNum += 1;
+            }
+        }
+
+        if (process.env.ALERTMANAGER_URL) {
+            let filter = Object.entries(data.commonLabels)
+                               .map(([label, value]) => `${label}="${value}"`)
+                               .join(",");
+            const url = (
+                process.env.ALERTMANAGER_URL +
+                "/#/silences/new?filter={" +
+                encodeURIComponent(filter) +
+                "}"
+            );
+            urls.push(`<a href="${url}">🔇 Alertmanager</a>`);
+        }
+
+        if (urls.length > 0) {
+            parts.push(urls.join(" | "));
+        }
+
+        return parts.join("");
     },
 
     parseAlerts: data => {
