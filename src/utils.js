@@ -438,8 +438,8 @@ const utils = {
                                 ["env", "cluster_id", "nodename", "exported_job", "level"],
                             ]) {
                                 if (labelSet.every(l => alert.labels[l])) {
-                                    alert.logs_template = (
-                                        "{" + labelSet.map(l => l + `=$` + l).join(",") + "}"
+                                    alert.annotations.logs_template = (
+                                        "{" + labelSet.map(l => `${l}="$${l}"`).join(",") + "}"
                                     );
                                     break;
                                 }
@@ -637,8 +637,10 @@ const utils = {
                 );
                 for (const logsDatasource of logsDatasources) {
                     const alerts = data.alerts.filter(
-                        alert.annotations.logs_template === logsTemplate &&
-                        alert.annotations.logs_datasource || defaultDatasource === logsDatasource
+                        alert => (
+                            alert.annotations.logs_template === logsTemplate &&
+                            alert.annotations.logs_datasource || defaultDatasource === logsDatasource
+                        ),
                     );
                     const expr = logsTemplate.replace(/=~?"\$([a-z0-9_]+)"/g, function(_, label) {
                         const values = new Set(alerts.map(alert => alert.labels[label]).filter(Boolean));
@@ -653,7 +655,7 @@ const utils = {
         let logsNum = 1;
         for (const logsURL of logsURLs) {
             const name = logsURLs.size > 1 ? `Logs ${logsNum}` : "Logs";
-            urls.push(`<a href="${logsURL}>🪵 ${name}</a>`);
+            urls.push(`<a href="${logsURL}">🪵 ${name}</a>`);
         }
 
         if (urls.length > 0) {
