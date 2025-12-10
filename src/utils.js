@@ -444,7 +444,7 @@ const utils = {
                         if (alert.labels.env) {
                             alert.summary += ` (${alert.labels.env})`;
                         }
-                        if (!alert.labels.logs_url && !alert.labels.logs_template) {
+                        if (!alert.annotations.logs_url && !alert.annotations.logs_template) {
                             for (const labelSet of [
                                 ["env", "cluster_id", "namespace", "pod"],
                                 ["env", "cluster_id", "nodename", "exported_job", "level"],
