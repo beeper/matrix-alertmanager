@@ -1,7 +1,7 @@
 const jsdiff = require('diff');
 
 const segmentString = (string) => {
-    return Array.from(string.matchAll(/[a-z0-9-]+|[^a-z0-9-]+/gi).map(match => match[0]));
+    return Array.from(string.matchAll(/[a-z0-9.-]+|[^a-z0-9.-]+/gi).map(match => match[0]));
 }
 
 const diffSegmented = (left, right) => {
@@ -432,6 +432,9 @@ const utils = {
                     .map(alert => {
                         alert = {...alert};
                         alert.summary = alert.annotations.summary || alert.labels.alertname;
+                        if (alert.labels.env) {
+                            alert.summary += ` (${alert.labels.env})`;
+                        }
                         if (!alert.labels.logs_url && !alert.labels.logs_template) {
                             for (const labelSet of [
                                 ["env", "cluster_id", "namespace", "pod"],
@@ -605,9 +608,20 @@ const utils = {
                                           .map(alert => alert.annotations.dashboard_url)
                                           .filter(Boolean));
         let dashboardNum = 1;
-        for (const dashboardURL of dashboardURLs) {
+        for (let dashboardURL of dashboardURLs) {
+            // For now, we'll only support replacing labels with a
+            // single value. In future it would be straightforward to
+            // duplicate query parameters in the URL to support
+            // passing all the values to the dashboard.
+            const alerts = data.alerts.filter(
+                alert => alert.annotations.dashboard_url === dashboardURL,
+            );
+            dashboardURL = dashboardURL.replace(/\$([a-z0-9_]+)/g, (_, label) => {
+                const values = new Set(alerts.map(alert => alert.labels[label]).filter(Boolean));
+                return values.size > 0 ? [...values][0] : `$` + label;
+            });
             const name = dashboardURLs.size > 1 ? `Dashboard ${dashboardNum}` : "Dashboard";
-            urls.push(`<a href="${dashboardURL}>🚦 ${name}</a>`);
+            urls.push(`<a href="${dashboardURL}">🚦 ${name}</a>`);
             dashboardNum += 1;
         }
 
@@ -617,7 +631,7 @@ const utils = {
         let runbookNum = 1;
         for (const runbookURL of runbookURLs) {
             const name = runbookURLs.size > 1 ? `Runbook ${runbookNum}` : "Runbook";
-            urls.push(`<a href="${runbookURL}>🗒️ ${name}</a>`);
+            urls.push(`<a href="${runbookURL}">🗒️ ${name}</a>`);
         }
 
         let logsURLs = new Set(data.alerts
@@ -642,7 +656,7 @@ const utils = {
                             alert.annotations.logs_datasource || defaultDatasource === logsDatasource
                         ),
                     );
-                    const expr = logsTemplate.replace(/=~?"\$([a-z0-9_]+)"/g, function(_, label) {
+                    const expr = logsTemplate.replace(/=~?"\$([a-z0-9_]+)"/g, (_, label) => {
                         const values = new Set(alerts.map(alert => alert.labels[label]).filter(Boolean));
                         const regex = values.size > 0 ? [...values].join("|") : ".+";
                         return `=~"${regex}"`;
