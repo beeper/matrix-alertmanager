@@ -155,9 +155,13 @@ const mergeStrings = (strings) => {
                 }
             }
         }
-        // Note that even though the ranges are inclusive-exclusive,
-        // we are treating them as inclusive-inclusive here because we
-        // want adjacent substrings to be picked up, as well.
+        // We're now iterating through the picked-out characters and
+        // the varying text ranges in parallel, incrementing either
+        // one when the other has gotten too far ahead. Our goal is to
+        // select for the particular picked-out characters that either
+        // fall strictly within a varying range (for unchanged
+        // characters) or fall within-or-adjacent-to a varying range
+        // (for added characters).
         const varyingParts = [];
         let idx = 0, done = false;
         for (const range of varyingRanges) {
@@ -193,6 +197,11 @@ const mergeStrings = (strings) => {
         varyingLists.push(varyingParts);
     }
 
+    // Finally, we iterate through the varying and unchanged text
+    // ranges in parallel, alternating between them (starting at
+    // whichever one covers index zero) and inserting the
+    // corresponding slices from the underlying strings, in order to
+    // construct the final merged text.
     let varyingIdx = 0, unchangedIdx = 0;
     let onVarying = varyingRanges[0].start === 0;
 
@@ -509,7 +518,7 @@ const utils = {
                 if (omitAnnotation(annotation)) continue;
                 if (!hasCommonAnnotation) {
                     parts.push(`<br>`);
-                    hasCommonAnnotation;
+                    hasCommonAnnotation = true;
                 }
                 parts.push(` <br><b>${annotation}</b>: ${value}`);
             }
@@ -653,7 +662,7 @@ const utils = {
                     const alerts = data.alerts.filter(
                         alert => (
                             alert.annotations.logs_template === logsTemplate &&
-                            alert.annotations.logs_datasource || defaultDatasource === logsDatasource
+                            (alert.annotations.logs_datasource || defaultDatasource) === logsDatasource
                         ),
                     );
                     const expr = logsTemplate.replace(/=~?"\$([a-z0-9_]+)"/g, (_, label) => {
