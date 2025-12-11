@@ -1,7 +1,7 @@
 const jsdiff = require('diff');
 
 const segmentString = (string) => {
-    return Array.from(string.matchAll(/[a-z0-9.-]+|[^a-z0-9.-]+/gi).map(match => match[0]));
+    return Array.from(string.matchAll(/[a-z0-9.-]+|[^a-z0-9.-]+/gi), match => match[0]);
 }
 
 const diffSegmented = (left, right) => {
@@ -203,7 +203,7 @@ const mergeStrings = (strings) => {
     // corresponding slices from the underlying strings, in order to
     // construct the final merged text.
     let varyingIdx = 0, unchangedIdx = 0;
-    let onVarying = varyingRanges[0].start === 0;
+    let onVarying = unchangedRanges[0].start > 0;
 
     let combined = [];
     while (
@@ -665,6 +665,7 @@ const utils = {
                             (alert.annotations.logs_datasource || defaultDatasource) === logsDatasource
                         ),
                     );
+                    if (alerts.length === 0) continue;
                     const expr = logsTemplate.replace(/=~?"\$([a-z0-9_]+)"/g, (_, label) => {
                         const values = new Set(alerts.map(alert => alert.labels[label]).filter(Boolean));
                         const regex = values.size > 0 ? [...values].join("|") : ".+";
