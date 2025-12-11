@@ -1,4 +1,4 @@
-FROM node:14
+FROM node:24-alpine
 
 ENV APP_PORT="3000"
 
