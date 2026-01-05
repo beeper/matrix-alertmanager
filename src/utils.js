@@ -221,7 +221,7 @@ const mergeStrings = (strings) => {
             for (const list of varyingLists) {
                 variantSet.add(list[varyingIdx]);
             }
-            variants = [...variantSet].sort();
+            let variants = [...variantSet].sort();
             if (variants.length > limits.summaryAlts) {
                 const numIncluded = limits.summaryAlts - 1;
                 const numOmitted = variants.length - numIncluded;
