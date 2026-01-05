@@ -1,9 +1,9 @@
 const jsdiff = require('diff');
 
 const limits = {
-    summaryAlts: 25,
-    detailAlts: 10,
-}
+    summaryAlts: parseInt(process.env.MAX_SUMMARY_ALTS, 10) || 25,
+    detailAlts: parseInt(process.env.MAX_DETAIL_ALTS, 10) || 10,
+};
 
 const segmentString = (string) => {
     return Array.from(string.matchAll(/[a-z0-9.-]+|[^a-z0-9.-]+/gi), match => match[0]);
