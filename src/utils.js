@@ -1,8 +1,8 @@
 const jsdiff = require('diff');
 
 const limits = {
-    summaryAlts: parseInt(process.env.MAX_SUMMARY_ALTS, 10) || 25,
-    detailAlts: parseInt(process.env.MAX_DETAIL_ALTS, 10) || 10,
+    summaryAlts: Math.max(3, parseInt(process.env.MAX_SUMMARY_ALTS, 10) || 25),
+    detailAlts: Math.max(1, parseInt(process.env.MAX_DETAIL_ALTS, 10) || 10),
 };
 
 const segmentString = (string) => {
