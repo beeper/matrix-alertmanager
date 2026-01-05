@@ -1,5 +1,10 @@
 const jsdiff = require('diff');
 
+const limits = {
+    summaryAlts: 25,
+    detailAlts: 10,
+}
+
 const segmentString = (string) => {
     return Array.from(string.matchAll(/[a-z0-9.-]+|[^a-z0-9.-]+/gi), match => match[0]);
 }
@@ -212,11 +217,18 @@ const mergeStrings = (strings) => {
         : (unchangedIdx < unchangedRanges.length)
     ) {
         if (onVarying) {
-            let variants = new Set();
+            let variantSet = new Set();
             for (const list of varyingLists) {
-                variants.add(list[varyingIdx]);
+                variantSet.add(list[varyingIdx]);
             }
-            combined.push("{" + [...variants].sort().join(", ") + "}");
+            variants = [...variantSet].sort();
+            if (variants.length > limits.summaryAlts) {
+                const numIncluded = limits.summaryAlts - 1;
+                const numOmitted = variants.length - numIncluded;
+                variants = variants.slice(0, numIncluded);
+                variants.push(`... ${numOmitted} more`);
+            }
+            combined.push("{" + variants.join(", ") + "}");
 
             varyingIdx += 1;
             onVarying = false;
@@ -527,6 +539,10 @@ const utils = {
                 parts.push(` <br>${nbsp}`);
                 let alertNum = 1;
                 for (const alert of alerts) {
+                    if (alertNum > limits.detailAlts) {
+                        parts.push(`(... and ${alerts.length - limits.detailAlts} more)`);
+                        break;
+                    }
                     const emoji = (
                         statusEmojis[alert.status] ||
                         severityEmojis[alert.labels.severity] ||
