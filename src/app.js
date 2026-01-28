@@ -20,7 +20,7 @@ client.init().then(() => {
     // eslint-disable-next-line no-console
     console.error('initialization failed')
     // eslint-disable-next-line no-console
-    console.error(e)
+    console.error(e?.message, e?.stack)
 })
 
 module.exports = app
