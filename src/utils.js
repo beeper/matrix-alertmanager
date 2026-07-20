@@ -617,7 +617,9 @@ const utils = {
         }
 
         if (process.env.GRAFANA_URL && process.env.GRAFANA_DATASOURCE) {
-            const generatorURLs = new Set(data.alerts.map(alert => alert.generatorURL));
+            const generatorURLs = new Set(data.alerts
+                .filter(alert => !alert.annotations.alert_url)
+                .map(alert => alert.generatorURL));
             let grafanaNum = 1;
             for (const generatorURL of generatorURLs) {
                 const alerts = data.alerts.filter(alert => alert.generatorURL == generatorURL);
