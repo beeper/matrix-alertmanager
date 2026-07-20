@@ -213,8 +213,8 @@ const mergeStrings = (strings) => {
     let combined = [];
     while (
         onVarying
-        ? (varyingIdx < varyingRanges.length)
-        : (unchangedIdx < unchangedRanges.length)
+            ? (varyingIdx < varyingRanges.length)
+            : (unchangedIdx < unchangedRanges.length)
     ) {
         if (onVarying) {
             let variantSet = new Set();
@@ -330,7 +330,10 @@ const utils = {
 
         // link generation code
         let url = externalURL + data.generatorURL;
-        if (process.env.GRAFANA_URL != "") {
+        if (data.annotations.hasOwnProperty("alert_url")) {
+            url = data.annotations.alert_url;
+        }
+        if (process.env.GRAFANA_URL != "" && !data.annotations.hasOwnProperty("alert_url")) {
             const left = {
                 "datasource": process.env.GRAFANA_DATASOURCE,
                 "queries": [
@@ -390,7 +393,7 @@ const utils = {
             }
         }
 
-        if(data.annotations.hasOwnProperty("logs_url")) {
+        if (data.annotations.hasOwnProperty("logs_url")) {
             logs_url = data.annotations.logs_url;
         } else if (data.annotations.hasOwnProperty("logs_template")) {
             const now = new Date().getTime();
@@ -401,7 +404,7 @@ const utils = {
                 "queries": [{
                     "refId": "A",
                     "queryType": "range",
-                    "expr": data.annotations.logs_template.replace(/\$([a-z0-9_]+)/g, function(_, label) {
+                    "expr": data.annotations.logs_template.replace(/\$([a-z0-9_]+)/g, function (_, label) {
                         return data.labels[label] || "";
                     }),
                 }],
@@ -423,19 +426,19 @@ const utils = {
             parts.push('| <a href="' + silenceUrl + '">🔇 Silence</a>')
         }
 
-        if(data.annotations.hasOwnProperty("dashboard_url")) {
-            let url = data.annotations.dashboard_url.replace(/\$([a-z0-9_]+)/g, function(_, label) {
+        if (data.annotations.hasOwnProperty("dashboard_url")) {
+            let url = data.annotations.dashboard_url.replace(/\$([a-z0-9_]+)/g, function (_, label) {
                 return data.labels[label] || "";
             });
 
             parts.push('| <a href="', url, '">🚦 Dashboard</a>');
         }
 
-        if(data.annotations.hasOwnProperty("runbook_url")) {
+        if (data.annotations.hasOwnProperty("runbook_url")) {
             parts.push('| <a href="', data.annotations.runbook_url, '">🏃 Runbook</a>')
         }
 
-        if(logs_url) {
+        if (logs_url) {
             parts.push('| <a href="', logs_url, '">🗒️ Logs</a>')
         }
 
@@ -451,7 +454,7 @@ const utils = {
                 data.alerts
                     .filter(alert => alert.status === status)
                     .map(alert => {
-                        alert = {...alert};
+                        alert = { ...alert };
                         alert.summary = alert.annotations.summary || alert.labels.alertname;
                         if (alert.labels.env) {
                             alert.summary += ` (${alert.labels.env})`;
@@ -480,9 +483,9 @@ const utils = {
             let unknownEmoji = "🤨";
             let severityEmojis = {
                 "critical": "💥",
-                "error":    "🚨",
-                "warning":  "⚠️",
-                "info":     "ℹ️",
+                "error": "🚨",
+                "warning": "⚠️",
+                "info": "ℹ️",
             };
             let statusEmojis = {
                 "resolved": "✅",
@@ -514,6 +517,7 @@ const utils = {
             const omitAnnotation = (ann) => {
                 switch (ann) {
                     case "summary":
+                    case "alert_url":
                     case "dashboard_url":
                     case "runbook_url":
                     case "logs_url":
@@ -580,7 +584,7 @@ const utils = {
             const relevantTimes = alerts.map(alert => new Date(alert.startsAt));
             relevantTimes.push(new Date());
             const minRelevant = Math.min.apply(null, relevantTimes),
-                  maxRelevant = Math.max.apply(null, relevantTimes);
+                maxRelevant = Math.max.apply(null, relevantTimes);
             const thirtyMinutesMs = 30 * 60 * 1000;
             const windowStarts = new Date(minRelevant - thirtyMinutesMs);
             const windowEnds = new Date(maxRelevant + thirtyMinutesMs);
@@ -618,8 +622,8 @@ const utils = {
 
         if (process.env.ALERTMANAGER_URL) {
             let filter = Object.entries(data.commonLabels)
-                               .map(([label, value]) => `${label}="${value}"`)
-                               .join(",");
+                .map(([label, value]) => `${label}="${value}"`)
+                .join(",");
             const url = (
                 process.env.ALERTMANAGER_URL +
                 "/#/silences/new?filter={" +
@@ -630,8 +634,8 @@ const utils = {
         }
 
         const dashboardURLs = new Set(data.alerts
-                                          .map(alert => alert.annotations.dashboard_url)
-                                          .filter(Boolean));
+            .map(alert => alert.annotations.dashboard_url)
+            .filter(Boolean));
         let dashboardNum = 1;
         for (let dashboardURL of dashboardURLs) {
             // For now, we'll only support replacing labels with a
@@ -651,8 +655,8 @@ const utils = {
         }
 
         const runbookURLs = new Set(data.alerts
-                                        .map(alert => alert.annotations.runbook_url)
-                                        .filter(Boolean));
+            .map(alert => alert.annotations.runbook_url)
+            .filter(Boolean));
         let runbookNum = 1;
         for (const runbookURL of runbookURLs) {
             const name = runbookURLs.size > 1 ? `Runbook ${runbookNum}` : "Runbook";
@@ -660,14 +664,14 @@ const utils = {
         }
 
         let logsURLs = new Set(data.alerts
-                                   .map(alert => alert.annotations.logs_url)
-                                   .filter(Boolean));
+            .map(alert => alert.annotations.logs_url)
+            .filter(Boolean));
 
         if (process.env.GRAFANA_URL && process.env.GRAFANA_LOKI_DATASOURCE) {
             const defaultDatasource = process.env.GRAFANA_LOKI_DATASOURCE;
             const logsTemplates = new Set(data.alerts
-                                              .map(alert => alert.annotations.logs_template)
-                                              .filter(Boolean));
+                .map(alert => alert.annotations.logs_template)
+                .filter(Boolean));
             for (const logsTemplate of logsTemplates) {
                 const logsDatasources = new Set(
                     data.alerts
