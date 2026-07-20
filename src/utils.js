@@ -332,8 +332,7 @@ const utils = {
         let url = externalURL + data.generatorURL;
         if (data.annotations.hasOwnProperty("alert_url")) {
             url = data.annotations.alert_url;
-        }
-        if (process.env.GRAFANA_URL != "" && !data.annotations.hasOwnProperty("alert_url")) {
+        } else if (process.env.GRAFANA_URL != "") {
             const left = {
                 "datasource": process.env.GRAFANA_DATASOURCE,
                 "queries": [
@@ -605,6 +604,16 @@ const utils = {
                 "/explore?orgId=1&left=" +
                 encodeURIComponent(JSON.stringify(left))
             );
+        }
+
+        const alertURLs = new Set(data.alerts
+            .map(alert => alert.annotations.alert_url)
+            .filter(Boolean));
+        let alertURLNum = 1;
+        for (const alertURL of alertURLs) {
+            const name = alertURLs.size > 1 ? `Alert link ${alertURLNum}` : "Alert link";
+            urls.push(`<a href="${alertURL}">📈 ${name}</a>`);
+            alertURLNum += 1;
         }
 
         if (process.env.GRAFANA_URL && process.env.GRAFANA_DATASOURCE) {
