@@ -50,8 +50,9 @@ const routes = {
         }
 
         try {
-            const mentions = req.body.status === 'firing' ? utils.getMentionsForReceiver(req.body.receiver) : []
-            const promises = alerts.map(alert => client.sendAlert(roomId, alert, mentions))
+            const mentions = utils.getMentionsForReceiver(req.body.receiver)
+            const statuses = process.env.RESPECT_GROUPBY === "1" ? [req.body.status] : req.body.alerts.map(alert => alert.status)
+            const promises = alerts.map((alert, i) => client.sendAlert(roomId, alert, statuses[i] === 'firing' ? mentions : []))
             await Promise.all(promises)
             res.json({'result': 'ok'})
         } catch (e) {

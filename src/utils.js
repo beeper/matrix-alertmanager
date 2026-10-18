@@ -273,9 +273,9 @@ const utils = {
     getMentionsForReceiver: receiver => {
         const mentionConfigs = (process.env.MATRIX_MENTIONS || '').split('|')
         for (let config of mentionConfigs) {
-            const [configReceiver, userIds] = config.split('/')
-            if (configReceiver === receiver && userIds) {
-                return userIds.split(',').filter(userId => userId)
+            const separator = config.indexOf('/')
+            if (separator !== -1 && config.slice(0, separator).trim() === receiver) {
+                return config.slice(separator + 1).split(',').map(userId => userId.trim()).filter(userId => userId)
             }
         }
         return []
