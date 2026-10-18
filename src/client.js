@@ -36,19 +36,21 @@ const client = {
             }
         })
     },
-    sendAlert: async function(roomId, alert) {
+    sendAlert: async function(roomId, alert, mentions = []) {
         await this.ensureInRoom(roomId)
-        return this.connection.sendEvent(
-            roomId,
-            'm.room.message',
-            {
-                'body': striptags(alert),
-                'formatted_body': alert,
-                'msgtype': 'm.text',
-                'format': 'org.matrix.custom.html'
-            },
-            '',
-        )
+        const content = {
+            'body': striptags(alert),
+            'formatted_body': alert,
+            'msgtype': 'm.text',
+            'format': 'org.matrix.custom.html'
+        }
+        if (mentions.length > 0) {
+            const pills = mentions.map(userId => `<a href="https://matrix.to/#/${userId}">${userId}</a>`)
+            content['body'] = `${mentions.join(' ')}\n${content['body']}`
+            content['formatted_body'] = `${pills.join(' ')}<br>${content['formatted_body']}`
+            content['m.mentions'] = {'user_ids': mentions}
+        }
+        return this.connection.sendEvent(roomId, 'm.room.message', content, '')
     },
 }
 
