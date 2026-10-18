@@ -50,7 +50,8 @@ const routes = {
         }
 
         try {
-            const promises = alerts.map(alert => client.sendAlert(roomId, alert))
+            const mentions = req.body.status === 'firing' ? utils.getMentionsForReceiver(req.body.receiver) : []
+            const promises = alerts.map(alert => client.sendAlert(roomId, alert, mentions))
             await Promise.all(promises)
             res.json({'result': 'ok'})
         } catch (e) {

@@ -270,6 +270,17 @@ const utils = {
         return roomId
     },
 
+    getMentionsForReceiver: receiver => {
+        const mentionConfigs = (process.env.MATRIX_MENTIONS || '').split('|')
+        for (let config of mentionConfigs) {
+            const [configReceiver, userIds] = config.split('/')
+            if (configReceiver === receiver && userIds) {
+                return userIds.split(',').filter(userId => userId)
+            }
+        }
+        return []
+    },
+
     formatAlert: (data, externalURL) => {
         /*
         Format a single alert into a message string.

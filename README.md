@@ -14,6 +14,7 @@ Main features:
 * Secret key authentication with Alertmanager.
 * HTML formatted messages.
 * Optionally mentions `@room` on firing alerts
+* Optionally mentions specific users on firing alerts, per receiver, with `MATRIX_MENTIONS=receiver1/@bot:homeserver.tld,@oncall:homeserver.tld|receiver2/@other:homeserver.tld`
 
 ## How to use
 
